@@ -1,6 +1,8 @@
 name: Publish
 
-# Push a version tag (v1.2.3) to publish. Needs NUGET_API_KEY in the `nuget` environment.
+# Push a version tag (v1.2.3) to publish to nuget.org with Trusted Publishing (no API key).
+# Needs: a nuget.org Trusted Publishing policy for this repository with Workflow File `publish.yml` and
+# Environment `nuget`, and the NUGET_USER secret (nuget.org profile name) in the `nuget` environment.
 on:
   push:
     tags: [ 'v*' ]
@@ -10,8 +12,29 @@ permissions:
   contents: read
 
 jobs:
-  publish:
-    uses: msavarian-base/.github/.github/workflows/dotnet-nuget-publish.yml@main
+  pack:
+    uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@main
     with:
       solution: CHANGE_ME.slnx
-    secrets: inherit
+
+  push:
+    name: Push to nuget.org
+    needs: pack
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: packages
+          path: artifacts
+
+      - name: NuGet login (OIDC → temporary API key)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

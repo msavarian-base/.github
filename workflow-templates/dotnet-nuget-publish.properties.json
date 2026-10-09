@@ -1,6 +1,6 @@
 {
     "name": "msavarian-base NuGet publish",
-    "description": "Test, pack and push NuGet packages on a version tag with the organization's reusable workflow.",
+    "description": "Pack with the organization's reusable workflow and push to nuget.org with Trusted Publishing on a version tag.",
     "iconName": "octicon package",
     "categories": [ "C#", "Dotnet" ],
     "filePatterns": [ "global.json", ".*\\.slnx$" ]

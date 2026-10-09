@@ -1,19 +1,16 @@
-name: .NET NuGet publish
+name: .NET NuGet pack
 
-# Reusable workflow: test, pack and push NuGet packages.
+# Reusable workflow: test and pack NuGet packages, and upload them as the `packages` artifact.
 # When it runs on a tag (v10.0.1), every package version must equal the tag without the `v`.
-# The API key is read from NUGET_API_KEY: an environment secret of the `environment` input, or a repository /
-# organization secret passed with `secrets: inherit`.
 #
-#   on:
-#     push:
-#       tags: [ 'v*' ]
+# Pushing is done by a job in the caller's own workflow, so the nuget.org Trusted Publishing policy can name
+# that file (publish.yml). See workflow-templates/dotnet-nuget-publish.yml for the full caller.
+#
 #   jobs:
-#     publish:
-#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-publish.yml@main
+#     pack:
+#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@main
 #       with:
 #         solution: Acme.Lib.slnx
-#       secrets: inherit
 
 on:
   workflow_call:
@@ -30,17 +27,6 @@ on:
         description: Run `dotnet test` on the solution before packing
         type: boolean
         default: true
-      environment:
-        description: GitHub environment that holds NUGET_API_KEY and its protection rules
-        type: string
-        default: nuget
-      source:
-        description: NuGet feed to push to
-        type: string
-        default: https://api.nuget.org/v3/index.json
-    secrets:
-      NUGET_API_KEY:
-        required: false
 
 permissions:
   contents: read
@@ -50,10 +36,9 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  publish:
-    name: Pack and push
+  pack:
+    name: Test and pack
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v7
 
@@ -86,13 +71,3 @@ jobs:
         with:
           name: packages
           path: artifacts/*.nupkg
-
-      - name: Push
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::NUGET_API_KEY is not set (environment '${{ inputs.environment }}' or secrets: inherit)"
-            exit 1
-          fi
-          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source "${{ inputs.source }}" --skip-duplicate
