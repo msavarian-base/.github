@@ -1,0 +1,7 @@
+{
+    "name": "msavarian-base .NET CI",
+    "description": "Build and test a .NET solution with the organization's reusable workflow.",
+    "iconName": "octicon package",
+    "categories": [ "C#", "Dotnet" ],
+    "filePatterns": [ "global.json", ".*\\.slnx$" ]
+}

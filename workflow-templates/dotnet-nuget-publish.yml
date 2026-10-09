@@ -1,0 +1,17 @@
+name: Publish
+
+# Push a version tag (v1.2.3) to publish. Needs NUGET_API_KEY in the `nuget` environment.
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    uses: msavarian-base/.github/.github/workflows/dotnet-nuget-publish.yml@main
+    with:
+      solution: CHANGE_ME.slnx
+    secrets: inherit

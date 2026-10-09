@@ -1,0 +1,77 @@
+name: .NET CI
+
+# Reusable workflow: restore, build and test a .NET solution, optionally pack it.
+# The SDK comes from the caller's global.json.
+#
+#   jobs:
+#     ci:
+#       uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
+#       with:
+#         solution: Acme.Orders.slnx
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution or project to build and test
+        type: string
+        required: true
+      configuration:
+        description: Build configuration
+        type: string
+        default: Release
+      run-tests:
+        description: Run `dotnet test` on the solution (Microsoft.Testing.Platform)
+        type: boolean
+        default: true
+      pack-target:
+        description: Optional project or solution to `dotnet pack`; the packages are uploaded as the `packages` artifact
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore "${{ inputs.solution }}"
+
+      - name: Build
+        run: dotnet build "${{ inputs.solution }}" --no-restore -c ${{ inputs.configuration }}
+
+      - name: Test
+        if: inputs.run-tests
+        run: dotnet test --solution "${{ inputs.solution }}" --no-build -c ${{ inputs.configuration }} --report-trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always() && inputs.run-tests
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+      - name: Pack
+        if: inputs.pack-target != ''
+        run: dotnet pack "${{ inputs.pack-target }}" -c ${{ inputs.configuration }} -o artifacts
+
+      - name: Upload packages
+        if: inputs.pack-target != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/*.nupkg

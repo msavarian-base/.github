@@ -1,0 +1,98 @@
+name: .NET NuGet publish
+
+# Reusable workflow: test, pack and push NuGet packages.
+# When it runs on a tag (v10.0.1), every package version must equal the tag without the `v`.
+# The API key is read from NUGET_API_KEY: an environment secret of the `environment` input, or a repository /
+# organization secret passed with `secrets: inherit`.
+#
+#   on:
+#     push:
+#       tags: [ 'v*' ]
+#   jobs:
+#     publish:
+#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-publish.yml@main
+#       with:
+#         solution: Acme.Lib.slnx
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution to test before packing
+        type: string
+        required: true
+      pack-target:
+        description: Project or solution to pack (defaults to `solution`)
+        type: string
+        default: ''
+      run-tests:
+        description: Run `dotnet test` on the solution before packing
+        type: boolean
+        default: true
+      environment:
+        description: GitHub environment that holds NUGET_API_KEY and its protection rules
+        type: string
+        default: nuget
+      source:
+        description: NuGet feed to push to
+        type: string
+        default: https://api.nuget.org/v3/index.json
+    secrets:
+      NUGET_API_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  publish:
+    name: Pack and push
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Test
+        if: inputs.run-tests
+        run: dotnet test --solution "${{ inputs.solution }}" -c Release
+
+      - name: Pack
+        run: dotnet pack "${{ inputs.pack-target || inputs.solution }}" -c Release -o artifacts
+
+      - name: Check package versions against the tag
+        if: github.ref_type == 'tag'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          status=0
+          for package in artifacts/*.nupkg; do
+            if [[ "$package" != *".$version.nupkg" ]]; then
+              echo "::error::$(basename "$package") does not match tag $GITHUB_REF_NAME"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/*.nupkg
+
+      - name: Push
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGET_API_KEY is not set (environment '${{ inputs.environment }}' or secrets: inherit)"
+            exit 1
+          fi
+          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source "${{ inputs.source }}" --skip-duplicate
