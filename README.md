@@ -12,6 +12,7 @@ Organization-wide defaults for `msavarian-base`.
 | `.github/workflows/pr-title.yml` | Reusable workflow: pull request title must follow Conventional Commits |
 | `.github/workflows/dotnet-github-packages-push.yml` | Reusable workflow: push the `packages` artifact to the organization's GitHub Packages NuGet feed |
 | `workflow-templates/` | Starter workflows shown under **Actions → New workflow** |
+| `templates/dependabot.yml` | Starter Dependabot configuration (NuGet, npm, GitHub Actions, Docker); copy to `.github/dependabot.yml` |
 | `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md` | Default issue forms and pull request template |
 | `CONTRIBUTING.md`, `SECURITY.md` | Default contribution and security policies |
 
