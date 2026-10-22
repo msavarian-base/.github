@@ -35,6 +35,7 @@ jobs:
   e2e:
     name: Playwright
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -51,11 +52,18 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Install browsers
+      - name: Install browser dependencies
         # BROWSERS is split into words on purpose.
         env:
           BROWSERS: ${{ inputs.browsers }}
-        run: npx playwright install --with-deps $BROWSERS
+        timeout-minutes: 10
+        run: npx playwright install-deps $BROWSERS
+
+      - name: Install browsers
+        env:
+          BROWSERS: ${{ inputs.browsers }}
+        timeout-minutes: 10
+        run: npx playwright install $BROWSERS
 
       - name: Test
         env:
