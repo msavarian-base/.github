@@ -1,8 +1,8 @@
 name: Publish
 
 # Push a version tag (v1.2.3) to publish to nuget.org with Trusted Publishing (no API key) and to the
-# organization's GitHub Packages feed. Packages are unlisted on nuget.org by hand after each release
-# (nuget.org → Manage package → Listing); Trusted Publishing keys can only push.
+# organization's GitHub Packages feed. nuget.org versions are unlisted right after the push; the Trusted Publishing
+# policy needs the "Unlist or relist package versions" scope.
 # Needs: a nuget.org Trusted Publishing policy for this repository with Workflow File `publish.yml` and
 # Environment `nuget`, and the NUGET_USER secret (nuget.org profile name) in the `nuget` environment.
 on:
@@ -46,3 +46,26 @@ jobs:
 
       - name: Push
         run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      # Packages are published unlisted (restorable by exact version, hidden from search). nuget.org cannot receive a
+      # package as unlisted, so each pushed version is unlisted right after the push; the Trusted Publishing policy
+      # needs the "Unlist or relist package versions" scope.
+      - name: Unlist
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          for package in artifacts/*.nupkg; do
+            nuspec=$(unzip -p "$package" '*.nuspec')
+            id=$(grep -oPm1 '(?<=<id>)[^<]+' <<< "$nuspec")
+            version=$(grep -oPm1 '(?<=<version>)[^<]+' <<< "$nuspec")
+            for attempt in 1 2 3 4 5; do
+              if dotnet nuget delete "$id" "$version" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --non-interactive; then
+                break
+              fi
+              if [ "$attempt" = 5 ]; then
+                echo "::error::Could not unlist $id $version"
+                exit 1
+              fi
+              sleep 30
+            done
+          done

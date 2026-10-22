@@ -41,9 +41,10 @@ See the header comment of each workflow for all inputs.
 
 Repositories are private. Every NuGet package is published on a version tag to:
 
-- **nuget.org**, through Trusted Publishing, and then **unlisted by hand** (nuget.org → Manage
-  package → Listing); Trusted Publishing keys can only push, and nuget.org cannot push a
-  package as unlisted. Unlisted versions still restore when referenced by exact version.
+- **nuget.org**, through Trusted Publishing, and **unlisted** by the same job right after the
+  push (nuget.org cannot receive a package as unlisted). The Trusted Publishing policy needs the
+  "Unlist or relist package versions" scope and the package ids in its glob patterns. Unlisted
+  versions still restore when referenced by exact version.
 - **GitHub Packages** (`https://nuget.pkg.github.com/msavarian-base/index.json`), through
   `dotnet-github-packages-push.yml`.
 - The home-lab **Nexus** feed will be added later.
