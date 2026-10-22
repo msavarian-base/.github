@@ -1,0 +1,44 @@
+# Starter Dependabot configuration. Copy to .github/dependabot.yml and remove the ecosystems the repository
+# does not use. Minor and patch updates are grouped into one weekly pull request per ecosystem; security
+# updates are opened as soon as an advisory is published (enable them under Settings → Advanced Security).
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nuget-minor-and-patch:
+        update-types: [ minor, patch ]
+    commit-message:
+      prefix: chore
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [ minor, patch ]
+      angular:
+        patterns: [ '@angular/*', '@angular-devkit/*', '@schematics/angular' ]
+    commit-message:
+      prefix: chore
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: [ '*' ]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directories: [ '/**' ]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore

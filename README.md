@@ -8,6 +8,7 @@ Organization-wide defaults for `msavarian-base`.
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
 | `workflow-templates/` | Starter workflows shown under **Actions → New workflow** |
+| `templates/dependabot.yml` | Starter Dependabot configuration (NuGet, npm, GitHub Actions, Docker); copy to `.github/dependabot.yml` |
 | `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md` | Default issue forms and pull request template |
 | `CONTRIBUTING.md`, `SECURITY.md` | Default contribution and security policies |
 
