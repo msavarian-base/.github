@@ -69,16 +69,10 @@ on:
         description: Image digest
         value: ${{ jobs.build.outputs.digest }}
 
-permissions:
-  contents: read
-
 jobs:
   build:
     name: Build and push image
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    permissions:
-      contents: read
-      packages: write
     outputs:
       image: ${{ steps.name.outputs.image }}
       tag: ${{ steps.name.outputs.tag }}
