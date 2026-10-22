@@ -1,0 +1,44 @@
+name: .NET GitHub Packages push
+
+# Reusable workflow: push the `packages` artifact (from dotnet-nuget-pack.yml) to the caller organization's
+# GitHub Packages NuGet feed (https://nuget.pkg.github.com/<owner>/index.json) with the workflow's GITHUB_TOKEN.
+# Packages of a private repository stay private and inherit its access.
+#
+#   jobs:
+#     pack:
+#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@v1
+#       with:
+#         solution: Acme.Lib.slnx
+#     github-packages:
+#       needs: pack
+#       permissions:
+#         packages: write
+#       uses: msavarian-base/.github/.github/workflows/dotnet-github-packages-push.yml@v1
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: Name of the artifact that holds the .nupkg files
+        type: string
+        default: packages
+
+permissions:
+  packages: write
+
+jobs:
+  push:
+    name: Push to GitHub Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.artifact }}
+          path: artifacts
+
+      - name: Push
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          --skip-duplicate

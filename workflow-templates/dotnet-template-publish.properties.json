@@ -1,0 +1,7 @@
+{
+    "name": "msavarian-base dotnet new template publish",
+    "description": "Pack a dotnet new template, generate and test a solution from it, and push to nuget.org with Trusted Publishing on a version tag.",
+    "iconName": "octicon package",
+    "categories": [ "C#", "Dotnet" ],
+    "filePatterns": [ "global.json", ".*\.Templates\.csproj$" ]
+}

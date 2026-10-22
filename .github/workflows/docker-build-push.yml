@@ -1,0 +1,144 @@
+name: Docker build and push
+
+# Reusable workflow: build a multi-arch container image and push it to GitHub Container Registry (default) or the
+# home-lab Nexus registry. Tags: the version on a release tag (v1.2.3 → 1.2.3) and `sha-<short commit>` always.
+# The caller grants `packages: write` for GHCR. Nexus needs the NEXUS_USERNAME and NEXUS_PASSWORD secrets and a
+# runner that can reach it (`runs-on`).
+#
+#   jobs:
+#     image:
+#       uses: msavarian-base/.github/.github/workflows/docker-build-push.yml@v1
+#       permissions:
+#         contents: read
+#         packages: write
+#       with:
+#         dockerfile: src/Acme.Api/Dockerfile
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Image name without the registry (defaults to the repository, `owner/name`)
+        type: string
+        default: ''
+      registry:
+        description: '`ghcr` or `nexus`'
+        type: string
+        default: ghcr
+      nexus-registry:
+        description: Nexus registry host and port, used when `registry` is `nexus`
+        type: string
+        default: ''
+      context:
+        description: Build context
+        type: string
+        default: .
+      dockerfile:
+        description: Dockerfile path
+        type: string
+        default: Dockerfile
+      platforms:
+        description: Target platforms
+        type: string
+        default: linux/amd64,linux/arm64
+      build-args:
+        description: Build arguments, one `NAME=value` per line
+        type: string
+        default: ''
+      push:
+        description: Push the image (false builds only, for example on pull requests)
+        type: boolean
+        default: true
+      runs-on:
+        description: Runner labels as JSON (a string or an array)
+        type: string
+        default: '"ubuntu-latest"'
+    secrets:
+      NEXUS_USERNAME:
+        required: false
+      NEXUS_PASSWORD:
+        required: false
+    outputs:
+      image:
+        description: Full image name with registry, without a tag
+        value: ${{ jobs.build.outputs.image }}
+      tag:
+        description: The tag to deploy (the version on a release tag, otherwise `sha-<short commit>`)
+        value: ${{ jobs.build.outputs.tag }}
+      digest:
+        description: Image digest
+        value: ${{ jobs.build.outputs.digest }}
+
+jobs:
+  build:
+    name: Build and push image
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+      tag: ${{ steps.name.outputs.tag }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Image name and tag
+        id: name
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          NEXUS: ${{ inputs.nexus-registry }}
+          IMAGE: ${{ inputs.image || github.repository }}
+        run: |
+          case "$REGISTRY" in
+            ghcr) host=ghcr.io ;;
+            nexus)
+              if [ -z "$NEXUS" ]; then echo "::error::nexus-registry is required when registry is nexus"; exit 1; fi
+              host="$NEXUS" ;;
+            *) echo "::error::Unknown registry '$REGISTRY' (use ghcr or nexus)"; exit 1 ;;
+          esac
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+          echo "image=$host/${IMAGE,,}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha,prefix=sha-
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: inputs.push && inputs.registry == 'ghcr'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Nexus
+        if: inputs.push && inputs.registry == 'nexus'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ steps.name.outputs.host }}
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+
+      - uses: docker/build-push-action@v7
+        id: build
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          build-args: ${{ inputs.build-args }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
