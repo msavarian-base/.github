@@ -1,0 +1,106 @@
+name: Vulnerable package scan
+
+# Reusable workflow: fail when a .NET solution or an npm project depends on a package with a known vulnerability
+# at or above the given severity. Runs `dotnet list package --vulnerable --include-transitive` and `npm audit`.
+# Call it on pull requests and on a weekly schedule, so advisories published after a merge are caught too.
+#
+#   on:
+#     pull_request:
+#     schedule:
+#       - cron: '0 4 * * 1'
+#   jobs:
+#     scan:
+#       uses: msavarian-base/.github/.github/workflows/security-scan.yml@v1
+#       with:
+#         solution: Acme.Orders.slnx
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: .NET solution or project to scan (empty = skip .NET)
+        type: string
+        default: ''
+      npm-directory:
+        description: Directory with package-lock.json to scan (empty = skip npm)
+        type: string
+        default: ''
+      level:
+        description: Minimum severity that fails the scan (low, moderate, high, critical)
+        type: string
+        default: high
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  dotnet:
+    name: .NET packages
+    if: inputs.solution != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        # The audit during restore is turned off here; this job reports it in its own format below.
+        run: dotnet restore "${{ inputs.solution }}" -p:NuGetAudit=false
+
+      - name: Scan
+        env:
+          SOLUTION: ${{ inputs.solution }}
+          LEVEL: ${{ inputs.level }}
+        run: |
+          dotnet list "$SOLUTION" package --vulnerable --include-transitive --format json > vulnerable.json
+          case "$LEVEL" in
+            low) severities='["Low","Moderate","High","Critical"]' ;;
+            moderate) severities='["Moderate","High","Critical"]' ;;
+            high) severities='["High","Critical"]' ;;
+            critical) severities='["Critical"]' ;;
+            *) echo "::error::Unknown level '$LEVEL'"; exit 1 ;;
+          esac
+          jq -r --argjson s "$severities" '
+            [.projects[] | .path as $p | .frameworks[]?
+              | ((.topLevelPackages // []) + (.transitivePackages // []))[]
+              | .id as $id | .resolvedVersion as $v
+              | .vulnerabilities[]? | select(.severity as $x | $s | index($x))
+              | "\(.severity)\t\($id) \($v)\t\(.advisoryurl)\t\($p)"]
+            | unique[]' vulnerable.json > findings.tsv
+          if [ -s findings.tsv ]; then
+            {
+              echo "### Vulnerable NuGet packages ($LEVEL or higher)"
+              echo
+              echo "| Severity | Package | Advisory | Project |"
+              echo "| --- | --- | --- | --- |"
+              sed 's/\t/ | /g; s/^/| /; s/$/ |/' findings.tsv
+            } >> "$GITHUB_STEP_SUMMARY"
+            cut -f1,2,3 findings.tsv | sort -u | while IFS=$'\t' read -r severity package advisory; do
+              echo "::error::$severity: $package ($advisory)"
+            done
+            exit 1
+          fi
+          echo "No vulnerable NuGet packages at $LEVEL or higher"
+
+  npm:
+    name: npm packages
+    if: inputs.npm-directory != ''
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.npm-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
+      - name: Scan
+        run: npm audit --package-lock-only --audit-level="${{ inputs.level }}"
