@@ -1,0 +1,94 @@
+name: .NET EF Core migrations bundle
+
+# Reusable workflow: build self-contained EF Core migration bundles and upload them as the `migrations-bundle`
+# artifact, for the deploy step to run before the new version starts (migrations never run on application start
+# in production). One bundle per DbContext, named `efbundle-<Context>` (or `efbundle` when `contexts` is empty).
+# dotnet-ef comes from the caller's tool manifest (.config/dotnet-tools.json) when there is one.
+#
+# Run a bundle on the target: ./efbundle-OrdersDbContext --connection "<connection string>"
+#
+#   jobs:
+#     migrations:
+#       uses: msavarian-base/.github/.github/workflows/dotnet-migrations-bundle.yml@v1
+#       with:
+#         project: src/Modules/Orders/Acme.Orders.Infrastructure/Acme.Orders.Infrastructure.csproj
+#         startup-project: src/Acme.Api/Acme.Api.csproj
+#         contexts: OrdersDbContext
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: Project that contains the migrations
+        type: string
+        required: true
+      startup-project:
+        description: Startup project used to create the DbContext (defaults to `project`)
+        type: string
+        default: ''
+      contexts:
+        description: Space-separated DbContext names, one bundle each; empty when the project has a single DbContext
+        type: string
+        default: ''
+      runtime:
+        description: Target runtime of the bundles
+        type: string
+        default: linux-x64
+      artifact-name:
+        description: Name of the uploaded artifact
+        type: string
+        default: migrations-bundle
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  bundle:
+    name: Build migration bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install dotnet-ef
+        run: |
+          if [ -f .config/dotnet-tools.json ] && grep -q '"dotnet-ef"' .config/dotnet-tools.json; then
+            dotnet tool restore
+          else
+            dotnet tool install --global dotnet-ef
+          fi
+
+      - name: Build bundles
+        env:
+          PROJECT: ${{ inputs.project }}
+          STARTUP_PROJECT: ${{ inputs.startup-project || inputs.project }}
+          CONTEXTS: ${{ inputs.contexts }}
+          RUNTIME: ${{ inputs.runtime }}
+        run: |
+          mkdir -p bundles
+          build() {
+            dotnet ef migrations bundle --project "$PROJECT" --startup-project "$STARTUP_PROJECT" \
+              --configuration Release --self-contained -r "$RUNTIME" --force "$@"
+          }
+          if [ -z "$CONTEXTS" ]; then
+            build -o bundles/efbundle
+          else
+            for context in $CONTEXTS; do
+              build --context "$context" -o "bundles/efbundle-$context"
+            done
+          fi
+          ls -l bundles
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: bundles/
+          if-no-files-found: error
