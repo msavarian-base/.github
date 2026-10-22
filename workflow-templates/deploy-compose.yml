@@ -1,0 +1,73 @@
+name: Deploy
+
+# main → image sha-<commit> → staging. Tag v1.2.3 on main → image 1.2.3 → staging → production (approve the
+# `production` environment). Rollback or redeploy: run this workflow manually with an earlier tag.
+# Needs: a self-hosted runner on each host labelled with its environment name; the MIGRATIONS_CONNECTION secret
+# in each environment; the compose project at COMPOSE_DIR using ${IMAGE_TAG} for the image.
+on:
+  push:
+    branches: [ $default-branch ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment
+        type: choice
+        options: [ staging, production ]
+      tag:
+        description: Image tag to deploy (1.2.3 or sha-abc1234)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    if: github.event_name == 'push'
+    uses: msavarian-base/.github/.github/workflows/docker-build-push.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      dockerfile: src/CHANGE_ME.Api/Dockerfile
+
+  migrations:
+    if: github.event_name == 'push'
+    uses: msavarian-base/.github/.github/workflows/dotnet-migrations-bundle.yml@v1
+    with:
+      project: src/CHANGE_ME.Infrastructure/CHANGE_ME.Infrastructure.csproj
+      startup-project: src/CHANGE_ME.Api/CHANGE_ME.Api.csproj
+
+  staging:
+    needs: [ image, migrations ]
+    uses: msavarian-base/.github/.github/workflows/deploy-compose.yml@v1
+    with:
+      environment: staging
+      tag: ${{ needs.image.outputs.tag }}
+      compose-dir: /opt/CHANGE_ME
+      migrations-artifact: migrations-bundle
+      health-url: http://localhost:8080/health/ready
+    secrets: inherit
+
+  production:
+    if: github.ref_type == 'tag'
+    needs: [ image, staging ]
+    uses: msavarian-base/.github/.github/workflows/deploy-compose.yml@v1
+    with:
+      environment: production
+      tag: ${{ needs.image.outputs.tag }}
+      compose-dir: /opt/CHANGE_ME
+      migrations-artifact: migrations-bundle
+      health-url: http://localhost:8080/health/ready
+    secrets: inherit
+
+  redeploy:
+    if: github.event_name == 'workflow_dispatch'
+    uses: msavarian-base/.github/.github/workflows/deploy-compose.yml@v1
+    with:
+      environment: ${{ inputs.environment }}
+      tag: ${{ inputs.tag }}
+      compose-dir: /opt/CHANGE_ME
+      health-url: http://localhost:8080/health/ready
+    secrets: inherit

@@ -1,0 +1,194 @@
+name: Deploy to Docker Compose
+
+# Reusable workflow: deploy an image tag to a Docker Compose host through a self-hosted runner on that host.
+# Steps: release guard → registry login → migration bundles → `docker compose pull && up -d` → health check.
+# When the health check fails, the previous tag is started again and the job fails.
+#
+# The host needs:
+#   - a self-hosted runner labelled `self-hosted` and the environment name (`staging`, `production`), or the
+#     labels given in `runs-on`;
+#   - the compose project in `compose-dir`, whose compose file uses `${IMAGE_TAG}` for the service image;
+#     the deployed tag is kept in `<compose-dir>/.env` so restarts keep it.
+#
+# Production deploys only versions whose `v<version>` tag is on `main`; staging also takes `sha-<commit>` tags.
+# Rollback is the same call with an earlier tag and no migrations (see workflow-templates/deploy-compose.yml).
+#
+#   jobs:
+#     deploy-staging:
+#       needs: [ image, migrations ]
+#       uses: msavarian-base/.github/.github/workflows/deploy-compose.yml@v1
+#       with:
+#         environment: staging
+#         tag: ${{ needs.image.outputs.tag }}
+#         compose-dir: /opt/acme
+#         migrations-artifact: migrations-bundle
+#         health-url: http://localhost:8080/health/ready
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment and runner label (`staging`, `production`)
+        type: string
+        required: true
+      tag:
+        description: Image tag to deploy (`1.2.3` or `sha-abc1234`)
+        type: string
+        required: true
+      compose-dir:
+        description: Directory of the compose project on the host
+        type: string
+        required: true
+      services:
+        description: Space-separated services to update (empty = all)
+        type: string
+        default: ''
+      migrations-artifact:
+        description: Artifact with EF Core migration bundles (`efbundle*`) to run before the update; empty = none
+        type: string
+        default: ''
+      health-url:
+        description: URL that must answer 2xx after the update (empty = no check)
+        type: string
+        default: ''
+      health-timeout:
+        description: Seconds to wait for the health check
+        type: number
+        default: 120
+      registry:
+        description: Registry to log in to before pulling (empty = the host is already logged in)
+        type: string
+        default: ghcr.io
+      runs-on:
+        description: Runner labels as JSON (defaults to ["self-hosted", "<environment>"])
+        type: string
+        default: ''
+    secrets:
+      REGISTRY_USERNAME:
+        required: false
+      REGISTRY_PASSWORD:
+        required: false
+      MIGRATIONS_CONNECTION:
+        description: Connection string the migration bundles run with
+        required: false
+    outputs:
+      previous-tag:
+        description: The tag that was running before this deploy
+        value: ${{ jobs.deploy.outputs.previous-tag }}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.tag }} to ${{ inputs.environment }}
+    runs-on: ${{ fromJSON(inputs.runs-on || format('["self-hosted","{0}"]', inputs.environment)) }}
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    outputs:
+      previous-tag: ${{ steps.current.outputs.tag }}
+    env:
+      TAG: ${{ inputs.tag }}
+      COMPOSE_DIR: ${{ inputs.compose-dir }}
+      SERVICES: ${{ inputs.services }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Release guard
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ "$ENVIRONMENT" != production ]; then exit 0; fi
+          if ! [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Production takes only release versions, not '$TAG'"
+            exit 1
+          fi
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main "+refs/tags/v$TAG:refs/tags/v$TAG"
+          if ! git merge-base --is-ancestor "v$TAG" origin/main; then
+            echo "::error::Tag v$TAG is not on main; production deploys only from tags on main"
+            exit 1
+          fi
+
+      - name: Current tag
+        id: current
+        run: |
+          tag=$(sed -n 's/^IMAGE_TAG=//p' "$COMPOSE_DIR/.env" 2>/dev/null | tail -n 1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Running: ${tag:-none}, deploying: $TAG"
+
+      - name: Log in to the registry
+        if: inputs.registry != ''
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          USERNAME: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          PASSWORD: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
+        run: echo "$PASSWORD" | docker login "$REGISTRY" -u "$USERNAME" --password-stdin
+
+      - name: Download migration bundles
+        if: inputs.migrations-artifact != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.migrations-artifact }}
+          path: ${{ runner.temp }}/migrations
+
+      - name: Run migrations
+        if: inputs.migrations-artifact != ''
+        env:
+          CONNECTION: ${{ secrets.MIGRATIONS_CONNECTION }}
+        run: |
+          if [ -z "$CONNECTION" ]; then echo "::error::MIGRATIONS_CONNECTION is not set"; exit 1; fi
+          for bundle in "$RUNNER_TEMP"/migrations/efbundle*; do
+            echo "Running $(basename "$bundle")"
+            chmod +x "$bundle"
+            "$bundle" --connection "$CONNECTION"
+          done
+
+      - name: Update
+        run: |
+          set_tag() {
+            touch "$COMPOSE_DIR/.env"
+            sed -i '/^IMAGE_TAG=/d' "$COMPOSE_DIR/.env"
+            echo "IMAGE_TAG=$1" >> "$COMPOSE_DIR/.env"
+          }
+          set_tag "$TAG"
+          cd "$COMPOSE_DIR"
+          # SERVICES is split into words on purpose.
+          docker compose pull $SERVICES
+          docker compose up -d --remove-orphans $SERVICES
+
+      - name: Health check
+        id: health
+        if: inputs.health-url != ''
+        env:
+          URL: ${{ inputs.health-url }}
+          TIMEOUT: ${{ inputs.health-timeout }}
+        run: |
+          deadline=$((SECONDS + TIMEOUT))
+          until curl -fsS -o /dev/null "$URL"; do
+            if [ $SECONDS -ge $deadline ]; then
+              echo "::error::$URL did not become healthy within ${TIMEOUT}s"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "$URL is healthy"
+
+      - name: Roll back to the previous tag
+        if: failure() && steps.health.outcome == 'failure' && steps.current.outputs.tag != ''
+        env:
+          PREVIOUS: ${{ steps.current.outputs.tag }}
+        run: |
+          echo "::warning::Rolling back to $PREVIOUS (database migrations are not reverted)"
+          sed -i '/^IMAGE_TAG=/d' "$COMPOSE_DIR/.env"
+          echo "IMAGE_TAG=$PREVIOUS" >> "$COMPOSE_DIR/.env"
+          cd "$COMPOSE_DIR"
+          docker compose up -d --remove-orphans $SERVICES
+
+      - name: Log out of the registry
+        if: always() && inputs.registry != ''
+        run: docker logout "${{ inputs.registry }}" || true
