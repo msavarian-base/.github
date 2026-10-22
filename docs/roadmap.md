@@ -50,10 +50,10 @@ Shared standards: <https://github.com/msavarian/ai-agent-standards> (cloned at
 
 - [x] **2.1 `docker-build-push.yml`** — multi-arch build, push to **GHCR** by default or the
   home-lab **Nexus** registry by input; tags = version + commit SHA ([deployment][r-deploy]). — PR #6.
-- [ ] **2.2 `deploy-compose.yml`** — deploy a tagged image to a Docker Compose host (G2) per
-  environment (`staging`, `production`), run the migration bundle first, health-check after. — PR #11. Not yet run on a real host (needs a self-hosted runner).
+- [x] **2.2 `deploy-compose.yml`** — deploy a tagged image to a Docker Compose host (G2) per
+  environment (`staging`, `production`), run the migration bundle first, health-check after. — PR #11. Tested on the dev-pc runner (WSL): migrations, deploy, health check, automatic rollback.
 - [ ] **2.3 `deploy-k8s.yml`** — apply Kubernetes manifests / Helm chart with the new tag. — PR #12. Not yet run on a real host (needs a self-hosted runner).
-- [ ] **2.4 Rollback** — re-deploy a previous tag through `workflow_dispatch`. — PR #11. Not yet run on a real host (needs a self-hosted runner).
+- [x] **2.4 Rollback** — re-deploy a previous tag through `workflow_dispatch`. — PR #11. Tested on the dev-pc runner (WSL): migrations, deploy, health check, automatic rollback.
 - [x] **2.5 Release guard** — deploy and publish only from tags on `main`. — PR #11 (deploy), #3 and #4 (packages).
 
 ## Phase 3 — Angular workflows

@@ -69,6 +69,10 @@ on:
         description: Helm value that holds the image tag
         type: string
         default: image.tag
+      app-environment:
+        description: ASP.NET Core / .NET environment the migration bundles start with (defaults to the environment name with a capital first letter, `Staging`)
+        type: string
+        default: ''
       migrations-artifact:
         description: Artifact with EF Core migration bundles (`efbundle*`) to run first; empty = none
         type: string
@@ -164,8 +168,13 @@ jobs:
         if: inputs.migrations-artifact != ''
         env:
           CONNECTION: ${{ secrets.MIGRATIONS_CONNECTION }}
+          APP_ENVIRONMENT: ${{ inputs.app-environment }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           if [ -z "$CONNECTION" ]; then echo "::error::MIGRATIONS_CONNECTION is not set"; exit 1; fi
+          # The bundle builds the application host, which reads appsettings.<Environment>.json.
+          app_environment="${APP_ENVIRONMENT:-${ENVIRONMENT^}}"
+          export DOTNET_ENVIRONMENT="$app_environment" ASPNETCORE_ENVIRONMENT="$app_environment"
           for bundle in "$RUNNER_TEMP"/migrations/efbundle*; do
             echo "Running $(basename "$bundle")"
             chmod +x "$bundle"
