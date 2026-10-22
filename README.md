@@ -25,3 +25,7 @@ jobs:
 ```
 
 See the header comment of each workflow for all inputs.
+
+## Roadmap
+
+Planned workflows and changes: [docs/roadmap.md](docs/roadmap.md).
