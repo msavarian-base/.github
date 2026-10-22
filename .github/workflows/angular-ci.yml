@@ -1,0 +1,100 @@
+name: Angular CI
+
+# Reusable workflow: install, lint, unit-test with coverage and build an Angular app (SPA or SSR).
+# Node comes from the caller's `.nvmrc` (or `node-version`). Each step runs its npm script only when
+# package.json has it. For the coverage check the test script must write
+# `coverage/**/coverage-summary.json` (the `json-summary` reporter).
+#
+#   jobs:
+#     ci:
+#       uses: msavarian-base/.github/.github/workflows/angular-ci.yml@v1
+#       with:
+#         coverage-threshold: 70
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory with package.json
+        type: string
+        default: .
+      node-version:
+        description: Node version (empty = read `.nvmrc`)
+        type: string
+        default: ''
+      lint-script:
+        description: npm script that lints
+        type: string
+        default: lint
+      test-script:
+        description: npm script that runs unit tests once, with coverage
+        type: string
+        default: test:ci
+      build-script:
+        description: npm script that builds for production (SPA or SSR)
+        type: string
+        default: build
+      coverage-threshold:
+        description: Minimum line coverage in percent (0 = no check). Fails the job when below.
+        type: number
+        default: 0
+      upload-dist:
+        description: Upload `dist/` as the `dist` artifact
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-version-file: ${{ inputs.node-version == '' && format('{0}/.nvmrc', inputs.working-directory) || '' }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run --if-present "${{ inputs.lint-script }}"
+
+      - name: Test
+        run: npm run --if-present "${{ inputs.test-script }}"
+
+      - name: Check coverage
+        if: inputs.coverage-threshold > 0
+        env:
+          THRESHOLD: ${{ inputs.coverage-threshold }}
+        run: |
+          summary=$(find coverage -name coverage-summary.json 2>/dev/null | head -n 1)
+          if [ -z "$summary" ]; then
+            echo "::error::No coverage/**/coverage-summary.json; add the json-summary coverage reporter"
+            exit 1
+          fi
+          coverage=$(jq '.total.lines.pct' "$summary")
+          echo "Line coverage: ${coverage}% (minimum ${THRESHOLD}%)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if awk -v c="$coverage" -v t="$THRESHOLD" 'BEGIN { exit !(c < t) }'; then
+            echo "::error::Line coverage ${coverage}% is below the minimum of ${THRESHOLD}%"
+            exit 1
+          fi
+
+      - name: Build
+        run: npm run "${{ inputs.build-script }}"
+
+      - name: Upload dist
+        if: inputs.upload-dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: ${{ inputs.working-directory }}/dist/
