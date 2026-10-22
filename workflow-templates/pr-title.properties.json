@@ -1,0 +1,6 @@
+{
+    "name": "msavarian-base PR title check",
+    "description": "Check that pull request titles follow Conventional Commits, since squash merges use them as the commit message.",
+    "iconName": "octicon git-pull-request",
+    "categories": [ "Automation" ]
+}
