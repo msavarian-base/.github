@@ -73,6 +73,8 @@ jobs:
           RUNTIME: ${{ inputs.runtime }}
         run: |
           mkdir -p bundles
+          dotnet restore "$STARTUP_PROJECT" -r "$RUNTIME"
+          dotnet restore "$PROJECT" -r "$RUNTIME"
           build() {
             dotnet ef migrations bundle --project "$PROJECT" --startup-project "$STARTUP_PROJECT" \
               --configuration Release --self-contained -r "$RUNTIME" --force "$@"
