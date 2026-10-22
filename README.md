@@ -7,6 +7,7 @@ Organization-wide defaults for `msavarian-base`.
 | `profile/README.md` | Public organization profile |
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
+| `.github/workflows/deploy-compose.yml` | Reusable workflow: deploy an image tag to a Docker Compose host through its self-hosted runner: release guard, migrations, update, health check, automatic rollback |
 | `.github/workflows/security-scan.yml` | Reusable workflow: `dotnet list package --vulnerable` and `npm audit`, failing at a severity level |
 | `.github/workflows/angular-e2e.yml` | Reusable workflow: Playwright end-to-end tests, HTML report as an artifact |
 | `.github/workflows/angular-ci.yml` | Reusable workflow: install, lint, unit tests with a coverage threshold, build (SPA or SSR) |
