@@ -1,0 +1,79 @@
+name: Deploy
+
+# main → image sha-<commit> → staging. Tag v1.2.3 on main → image 1.2.3 → staging → production (approve the
+# `production` environment). Rollback or redeploy: run this workflow manually with an earlier tag.
+# Needs: a self-hosted runner per environment, labelled with its name, that reaches the cluster; the KUBECONFIG
+# and MIGRATIONS_CONNECTION secrets in each environment (KUBECONFIG may be omitted when the runner has access).
+on:
+  push:
+    branches: [ $default-branch ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment
+        type: choice
+        options: [ staging, production ]
+      tag:
+        description: Image tag to deploy (1.2.3 or sha-abc1234)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    if: github.event_name == 'push'
+    uses: msavarian-base/.github/.github/workflows/docker-build-push.yml@v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      dockerfile: src/CHANGE_ME.Api/Dockerfile
+
+  migrations:
+    if: github.event_name == 'push'
+    uses: msavarian-base/.github/.github/workflows/dotnet-migrations-bundle.yml@v1
+    with:
+      project: src/CHANGE_ME.Infrastructure/CHANGE_ME.Infrastructure.csproj
+      startup-project: src/CHANGE_ME.Api/CHANGE_ME.Api.csproj
+
+  staging:
+    needs: [ image, migrations ]
+    uses: msavarian-base/.github/.github/workflows/deploy-k8s.yml@v1
+    with:
+      environment: staging
+      tag: ${{ needs.image.outputs.tag }}
+      image: ${{ needs.image.outputs.image }}
+      namespace: CHANGE_ME-staging
+      kustomize-dir: deploy/k8s/overlays/staging
+      deployment: CHANGE_ME-api
+      migrations-artifact: migrations-bundle
+    secrets: inherit
+
+  production:
+    if: github.ref_type == 'tag'
+    needs: [ image, staging ]
+    uses: msavarian-base/.github/.github/workflows/deploy-k8s.yml@v1
+    with:
+      environment: production
+      tag: ${{ needs.image.outputs.tag }}
+      image: ${{ needs.image.outputs.image }}
+      namespace: CHANGE_ME
+      kustomize-dir: deploy/k8s/overlays/production
+      deployment: CHANGE_ME-api
+      migrations-artifact: migrations-bundle
+    secrets: inherit
+
+  redeploy:
+    if: github.event_name == 'workflow_dispatch'
+    uses: msavarian-base/.github/.github/workflows/deploy-k8s.yml@v1
+    with:
+      environment: ${{ inputs.environment }}
+      tag: ${{ inputs.tag }}
+      image: ghcr.io/${{ github.repository }}
+      namespace: ${{ inputs.environment == 'production' && 'CHANGE_ME' || 'CHANGE_ME-staging' }}
+      kustomize-dir: deploy/k8s/overlays/${{ inputs.environment }}
+      deployment: CHANGE_ME-api
+    secrets: inherit
