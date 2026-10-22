@@ -5,7 +5,7 @@ name: .NET CI
 #
 #   jobs:
 #     ci:
-#       uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
+#       uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@v1
 #       with:
 #         solution: Acme.Orders.slnx
 #         coverage-threshold: 70

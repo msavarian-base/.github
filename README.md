@@ -18,13 +18,25 @@ Repositories that have their own copy of a file use theirs instead of these defa
 ```yaml
 jobs:
   ci:
-    uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
+    uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@v1
     with:
       solution: Acme.Orders.slnx
       coverage-threshold: 70   # fail below 70% line coverage (testing standard)
 ```
 
 See the header comment of each workflow for all inputs.
+
+## Versioning
+
+Callers pin the major tag, `@v1`, never `@main`.
+
+- Compatible changes (new optional inputs, fixes) are merged into `main`, tagged with a full
+  version (`v1.2.0`), and the `v1` tag is moved to the same commit:
+  `git tag -f v1 && git push -f origin v1`.
+- A breaking change (removed or renamed input, changed default behaviour) starts `v2`; `v1`
+  stays where it is until callers have moved.
+- To try a workflow change before release, point a caller branch at the branch name
+  (`@feature/<name>`).
 
 ## Roadmap
 

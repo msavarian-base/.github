@@ -8,7 +8,7 @@ name: .NET NuGet pack
 #
 #   jobs:
 #     pack:
-#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@main
+#       uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@v1
 #       with:
 #         solution: Acme.Lib.slnx
 

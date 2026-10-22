@@ -2,7 +2,8 @@
 
 Organization-wide defaults and **reusable GitHub Actions workflows** that every repository
 calls instead of copying pipeline steps ([CI/CD][r-cicd]). The other organizations' `.github`
-repositories keep their own profile and templates and call the workflows defined here.
+repositories keep their own profile and templates and hold their own copy of these workflows
+(G3), synced from here.
 
 Shared standards: <https://github.com/msavarian/ai-agent-standards> (cloned at
 `D:\sources\github.com\.claude`). Read the linked rule before starting an item.
@@ -19,13 +20,13 @@ Shared standards: <https://github.com/msavarian/ai-agent-standards> (cloned at
 
 | # | Decision | Options (recommended in bold) | Status |
 |---|---|---|---|
-| G1 | How callers pin workflows | **`@v1` major tag, moved on compatible changes** / `@main` | Open |
-| G2 | Deployment mechanism for Docker Compose targets | **SSH to the server + `docker compose pull && up -d`** / a self-hosted runner on the server | Open |
-| G3 | Where the other orgs' callers point | **all call `msavarian-base/.github` workflows** / each org copies them | Open |
+| G1 | How callers pin workflows | **`@v1` major tag, moved on compatible changes** / `@main` | Decided: `@v1` |
+| G2 | Deployment mechanism for Docker Compose targets | **SSH to the server + `docker compose pull && up -d`** / a self-hosted runner on the server | Decided: self-hosted runner |
+| G3 | Where the other orgs' callers point | **all call `msavarian-base/.github` workflows** / each org copies them | Decided: each org copies them |
 
 ## Phase 0 — Housekeeping
 
-- [ ] **0.1 Versioning** — tag the current workflows `v1`; document pinning (G1).
+- [x] **0.1 Versioning** — tag the current workflows `v1`; document pinning (G1).
 - [ ] **0.2 PR template checklist** — add the standards' key checks: Conventional Commits
   title, branch merged into `main`, tests and coverage, README/CHANGELOG, no secrets except
   in `appsettings.*.json` with `TODO(vault)` ([configuration and secrets][r-config]).
@@ -71,8 +72,8 @@ Shared standards: <https://github.com/msavarian/ai-agent-standards> (cloned at
 
 ## Phase 5 — Other organizations
 
-- [ ] **5.1** Each org's `.github`: profile, issue forms and PR template aligned with this one;
-  callers reference these workflows (G3).
+- [ ] **5.1** Each org's `.github`: profile, issue forms and PR template aligned with this one,
+  plus a copy of these workflows at the same tag; callers reference their own org's copy (G3).
 
 [r-cicd]: https://github.com/msavarian/ai-agent-standards/blob/main/rules/ci-cd.md
 [r-git]: https://github.com/msavarian/ai-agent-standards/blob/main/rules/git.md
