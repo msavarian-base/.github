@@ -27,10 +27,10 @@ Shared standards: <https://github.com/msavarian/ai-agent-standards> (cloned at
 ## Phase 0 — Housekeeping
 
 - [x] **0.1 Versioning** — tag the current workflows `v1`; document pinning (G1).
-- [ ] **0.2 PR template checklist** — add the standards' key checks: Conventional Commits
+- [x] **0.2 PR template checklist** — add the standards' key checks: Conventional Commits
   title, branch merged into `main`, tests and coverage, README/CHANGELOG, no secrets except
   in `appsettings.*.json` with `TODO(vault)` ([configuration and secrets][r-config]).
-- [ ] **0.3 Profile** — `profile/README.md` lists the framework, templates and central
+- [x] **0.3 Profile** — `profile/README.md` lists the framework, templates and central
   services with one line each.
 
 ## Phase 1 — .NET workflows
