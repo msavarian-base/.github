@@ -8,6 +8,8 @@ Organization-wide defaults for `msavarian-base`.
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
 | `.github/workflows/dotnet-template-pack.yml` | Reusable workflow: pack a `dotnet new` template, generate a solution per variant, build and test it; the caller pushes the package |
+| `.github/workflows/pr-title.yml` | Reusable workflow: pull request title must follow Conventional Commits |
+| `.github/workflows/dotnet-github-packages-push.yml` | Reusable workflow: push the `packages` artifact to the organization's GitHub Packages NuGet feed |
 | `workflow-templates/` | Starter workflows shown under **Actions → New workflow** |
 | `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md` | Default issue forms and pull request template |
 | `CONTRIBUTING.md`, `SECURITY.md` | Default contribution and security policies |
@@ -26,6 +28,19 @@ jobs:
 ```
 
 See the header comment of each workflow for all inputs.
+
+## Publishing packages
+
+Repositories are private. Every NuGet package is published on a version tag to:
+
+- **nuget.org**, through Trusted Publishing, and then **unlisted by hand** (nuget.org → Manage
+  package → Listing); Trusted Publishing keys can only push, and nuget.org cannot push a
+  package as unlisted. Unlisted versions still restore when referenced by exact version.
+- **GitHub Packages** (`https://nuget.pkg.github.com/msavarian-base/index.json`), through
+  `dotnet-github-packages-push.yml`.
+- The home-lab **Nexus** feed will be added later.
+
+`workflow-templates/dotnet-nuget-publish.yml` is the full caller.
 
 ## Versioning
 
