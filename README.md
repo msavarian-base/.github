@@ -7,6 +7,7 @@ Organization-wide defaults for `msavarian-base`.
 | `profile/README.md` | Public organization profile |
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
+| `.github/workflows/deploy-k8s.yml` | Reusable workflow: deploy an image tag to Kubernetes (Kustomize or Helm) through a self-hosted runner: release guard, migrations, rollout, automatic rollback |
 | `.github/workflows/dotnet-migrations-bundle.yml` | Reusable workflow: build self-contained EF Core migration bundles as an artifact for the deploy step |
 | `.github/workflows/deploy-compose.yml` | Reusable workflow: deploy an image tag to a Docker Compose host through its self-hosted runner: release guard, migrations, update, health check, automatic rollback |
 | `.github/workflows/security-scan.yml` | Reusable workflow: `dotnet list package --vulnerable` and `npm audit`, failing at a severity level |

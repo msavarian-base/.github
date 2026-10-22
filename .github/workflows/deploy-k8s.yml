@@ -1,0 +1,219 @@
+name: Deploy to Kubernetes
+
+# Reusable workflow: deploy an image tag to Kubernetes with Kustomize manifests or a Helm chart.
+# Steps: release guard → migration bundles → apply → rollout status. When the rollout fails, the previous
+# revision is restored (`kubectl rollout undo` / `helm rollback`) and the job fails.
+#
+# Runs on a self-hosted runner labelled `self-hosted` and the environment name (or `runs-on`) that can reach the
+# cluster and has kubectl (and helm for charts). Cluster access comes from the KUBECONFIG secret (file contents)
+# or, without it, the runner's own config.
+# Production deploys only versions whose `v<version>` tag is on `main`, as in deploy-compose.yml.
+#
+#   jobs:
+#     deploy-staging:
+#       needs: [ image ]
+#       uses: msavarian-base/.github/.github/workflows/deploy-k8s.yml@v1
+#       with:
+#         environment: staging
+#         tag: ${{ needs.image.outputs.tag }}
+#         image: ${{ needs.image.outputs.image }}
+#         namespace: acme
+#         kustomize-dir: deploy/k8s/overlays/staging
+#         deployment: acme-api
+#       secrets: inherit
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment and runner label (`staging`, `production`)
+        type: string
+        required: true
+      tag:
+        description: Image tag to deploy (`1.2.3` or `sha-abc1234`)
+        type: string
+        required: true
+      namespace:
+        description: Kubernetes namespace
+        type: string
+        required: true
+      kustomize-dir:
+        description: Kustomize directory to apply (use this or `helm-chart`)
+        type: string
+        default: ''
+      image:
+        description: Image name with registry, without a tag (Kustomize only)
+        type: string
+        default: ''
+      deployment:
+        description: Deployment whose image is set and whose rollout is awaited (Kustomize only)
+        type: string
+        default: ''
+      container:
+        description: Container in the deployment to update (Kustomize only; `*` = all)
+        type: string
+        default: '*'
+      helm-chart:
+        description: Helm chart path or reference (use this or `kustomize-dir`)
+        type: string
+        default: ''
+      helm-release:
+        description: Helm release name
+        type: string
+        default: ''
+      helm-values:
+        description: Space-separated values files for Helm
+        type: string
+        default: ''
+      helm-tag-key:
+        description: Helm value that holds the image tag
+        type: string
+        default: image.tag
+      migrations-artifact:
+        description: Artifact with EF Core migration bundles (`efbundle*`) to run first; empty = none
+        type: string
+        default: ''
+      timeout:
+        description: Rollout timeout, for example `5m`
+        type: string
+        default: 5m
+      runs-on:
+        description: Runner labels as JSON (defaults to ["self-hosted", "<environment>"])
+        type: string
+        default: ''
+    secrets:
+      KUBECONFIG:
+        required: false
+      MIGRATIONS_CONNECTION:
+        description: Connection string the migration bundles run with
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.tag }} to ${{ inputs.environment }}
+    runs-on: ${{ fromJSON(inputs.runs-on || format('["self-hosted","{0}"]', inputs.environment)) }}
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      TAG: ${{ inputs.tag }}
+      NAMESPACE: ${{ inputs.namespace }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check inputs
+        env:
+          KUSTOMIZE_DIR: ${{ inputs.kustomize-dir }}
+          HELM_CHART: ${{ inputs.helm-chart }}
+          IMAGE: ${{ inputs.image }}
+          DEPLOYMENT: ${{ inputs.deployment }}
+          RELEASE: ${{ inputs.helm-release }}
+        run: |
+          if { [ -n "$KUSTOMIZE_DIR" ] && [ -n "$HELM_CHART" ]; } || [ -z "$KUSTOMIZE_DIR$HELM_CHART" ]; then
+            echo "::error::Set exactly one of kustomize-dir and helm-chart"
+            exit 1
+          fi
+          if [ -n "$KUSTOMIZE_DIR" ] && { [ -z "$IMAGE" ] || [ -z "$DEPLOYMENT" ]; }; then
+            echo "::error::Kustomize deploys need image and deployment"
+            exit 1
+          fi
+          if [ -n "$HELM_CHART" ] && [ -z "$RELEASE" ]; then
+            echo "::error::Helm deploys need helm-release"
+            exit 1
+          fi
+
+      - name: Release guard
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ "$ENVIRONMENT" != production ]; then exit 0; fi
+          if ! [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Production takes only release versions, not '$TAG'"
+            exit 1
+          fi
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main "+refs/tags/v$TAG:refs/tags/v$TAG"
+          if ! git merge-base --is-ancestor "v$TAG" origin/main; then
+            echo "::error::Tag v$TAG is not on main; production deploys only from tags on main"
+            exit 1
+          fi
+
+      - name: Cluster access
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          if [ -n "$KUBECONFIG_CONTENT" ]; then
+            install -m 600 /dev/null "$RUNNER_TEMP/kubeconfig"
+            printf '%s' "$KUBECONFIG_CONTENT" > "$RUNNER_TEMP/kubeconfig"
+            echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download migration bundles
+        if: inputs.migrations-artifact != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.migrations-artifact }}
+          path: ${{ runner.temp }}/migrations
+
+      - name: Run migrations
+        if: inputs.migrations-artifact != ''
+        env:
+          CONNECTION: ${{ secrets.MIGRATIONS_CONNECTION }}
+        run: |
+          if [ -z "$CONNECTION" ]; then echo "::error::MIGRATIONS_CONNECTION is not set"; exit 1; fi
+          for bundle in "$RUNNER_TEMP"/migrations/efbundle*; do
+            echo "Running $(basename "$bundle")"
+            chmod +x "$bundle"
+            "$bundle" --connection "$CONNECTION"
+          done
+
+      - name: Deploy with Kustomize
+        id: kustomize
+        if: inputs.kustomize-dir != ''
+        env:
+          DIR: ${{ inputs.kustomize-dir }}
+          IMAGE: ${{ inputs.image }}
+          DEPLOYMENT: ${{ inputs.deployment }}
+          CONTAINER: ${{ inputs.container }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          kubectl apply -k "$DIR"
+          kubectl -n "$NAMESPACE" set image "deployment/$DEPLOYMENT" "$CONTAINER=$IMAGE:$TAG"
+          kubectl -n "$NAMESPACE" annotate "deployment/$DEPLOYMENT" kubernetes.io/change-cause="deploy $TAG" --overwrite
+          kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout "$TIMEOUT"
+
+      - name: Roll back (Kustomize)
+        if: failure() && steps.kustomize.outcome == 'failure'
+        env:
+          DEPLOYMENT: ${{ inputs.deployment }}
+        run: |
+          echo "::warning::Rolling back deployment/$DEPLOYMENT (database migrations are not reverted)"
+          kubectl -n "$NAMESPACE" rollout undo "deployment/$DEPLOYMENT"
+
+      - name: Deploy with Helm
+        id: helm
+        if: inputs.helm-chart != ''
+        env:
+          CHART: ${{ inputs.helm-chart }}
+          RELEASE: ${{ inputs.helm-release }}
+          VALUES: ${{ inputs.helm-values }}
+          TAG_KEY: ${{ inputs.helm-tag-key }}
+          TIMEOUT: ${{ inputs.timeout }}
+        run: |
+          args=()
+          for file in $VALUES; do args+=(-f "$file"); done
+          helm upgrade --install "$RELEASE" "$CHART" -n "$NAMESPACE" "${args[@]}" \
+            --set-string "$TAG_KEY=$TAG" --wait --timeout "$TIMEOUT"
+
+      - name: Roll back (Helm)
+        if: failure() && steps.helm.outcome == 'failure'
+        env:
+          RELEASE: ${{ inputs.helm-release }}
+        run: |
+          echo "::warning::Rolling back release $RELEASE (database migrations are not reverted)"
+          helm rollback "$RELEASE" -n "$NAMESPACE" --wait || echo "::warning::Nothing to roll back to"
