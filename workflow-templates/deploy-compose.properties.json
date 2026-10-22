@@ -1,0 +1,7 @@
+{
+    "name": "msavarian-base deploy to Docker Compose",
+    "description": "Build the image, build migration bundles and deploy to staging and production Docker Compose hosts through self-hosted runners; manual rollback by tag.",
+    "iconName": "octicon rocket",
+    "categories": [ "Deployment", "Dockerfile" ],
+    "filePatterns": [ "Dockerfile", ".*\.slnx$" ]
+}
