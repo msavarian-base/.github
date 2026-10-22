@@ -1,0 +1,80 @@
+name: Angular end-to-end tests
+
+# Reusable workflow: run Playwright end-to-end tests of an Angular app. The caller's playwright.config.ts starts
+# the app under test (its `webServer`, for example a production build served by `ng serve` or the SSR server).
+# The HTML report is uploaded as the `playwright-report` artifact.
+#
+#   jobs:
+#     e2e:
+#       uses: msavarian-base/.github/.github/workflows/angular-e2e.yml@v1
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory with package.json and playwright.config.ts
+        type: string
+        default: .
+      node-version:
+        description: Node version (empty = read `.nvmrc`)
+        type: string
+        default: ''
+      browsers:
+        description: Space-separated Playwright browsers to install
+        type: string
+        default: chromium
+      test-args:
+        description: Extra arguments for `playwright test`
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-version-file: ${{ inputs.node-version == '' && format('{0}/.nvmrc', inputs.working-directory) || '' }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Install browser dependencies
+        # BROWSERS is split into words on purpose.
+        env:
+          BROWSERS: ${{ inputs.browsers }}
+        timeout-minutes: 10
+        run: npx playwright install-deps $BROWSERS
+
+      - name: Install browsers
+        env:
+          BROWSERS: ${{ inputs.browsers }}
+        timeout-minutes: 10
+        run: npx playwright install $BROWSERS
+
+      - name: Test
+        env:
+          CI: true
+          ARGS: ${{ inputs.test-args }}
+        run: npx playwright test $ARGS
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: ${{ inputs.working-directory }}/playwright-report/
+          if-no-files-found: ignore
