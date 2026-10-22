@@ -60,7 +60,7 @@ jobs:
         run: |
           # The exit code is non-zero when any project cannot be listed (for example a .dcproj); those are
           # reported as warnings, and the scan fails only when the output has no projects at all.
-          dotnet list "$SOLUTION" package --vulnerable --include-transitive --format json > vulnerable.json || true
+          dotnet list "$SOLUTION" package --vulnerable --include-transitive --no-restore --format json > vulnerable.json || true
           if ! jq -e '.projects | length > 0' vulnerable.json > /dev/null 2>&1; then
             cat vulnerable.json
             echo "::error::dotnet list package did not return any projects"
