@@ -14,3 +14,4 @@ jobs:
     uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
     with:
       solution: CHANGE_ME.slnx
+      coverage-threshold: 70

@@ -8,6 +8,7 @@ name: .NET CI
 #       uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
 #       with:
 #         solution: Acme.Orders.slnx
+#         coverage-threshold: 70
 
 on:
   workflow_call:
@@ -28,6 +29,14 @@ on:
         description: Optional project or solution to `dotnet pack`; the packages are uploaded as the `packages` artifact
         type: string
         default: ''
+      coverage-threshold:
+        description: Minimum line coverage in percent (0 = do not collect coverage). Fails the job when below.
+        type: number
+        default: 0
+      coverage-assembly-filters:
+        description: ReportGenerator assembly filters for the coverage check
+        type: string
+        default: '+*;-*.Tests'
 
 permissions:
   contents: read
@@ -55,14 +64,34 @@ jobs:
 
       - name: Test
         if: inputs.run-tests
-        run: dotnet test --solution "${{ inputs.solution }}" --no-build -c ${{ inputs.configuration }} --report-trx --results-directory TestResults
+        run: >
+          dotnet test --solution "${{ inputs.solution }}" --no-build -c ${{ inputs.configuration }}
+          --report-trx --results-directory "$GITHUB_WORKSPACE/TestResults"
+          ${{ inputs.coverage-threshold > 0 && '--coverage --coverage-output-format cobertura' || '' }}
+
+      - name: Check coverage
+        if: inputs.run-tests && inputs.coverage-threshold > 0
+        env:
+          THRESHOLD: ${{ inputs.coverage-threshold }}
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator -reports:"TestResults/**/*.cobertura.xml" -targetdir:coverage -reporttypes:"JsonSummary;MarkdownSummaryGithub" "-assemblyfilters:${{ inputs.coverage-assembly-filters }}"
+          cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          coverage=$(jq '.summary.linecoverage' coverage/Summary.json)
+          echo "Line coverage: ${coverage}% (minimum ${THRESHOLD}%)"
+          if awk -v c="$coverage" -v t="$THRESHOLD" 'BEGIN { exit !(c < t) }'; then
+            echo "::error::Line coverage ${coverage}% is below the minimum of ${THRESHOLD}%"
+            exit 1
+          fi
 
       - name: Upload test results
         if: always() && inputs.run-tests
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: TestResults/**/*.trx
+          path: |
+            TestResults/**/*.trx
+            coverage/Summary.json
           if-no-files-found: ignore
 
       - name: Pack

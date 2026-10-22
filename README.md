@@ -21,6 +21,7 @@ jobs:
     uses: msavarian-base/.github/.github/workflows/dotnet-ci.yml@main
     with:
       solution: Acme.Orders.slnx
+      coverage-threshold: 70   # fail below 70% line coverage (testing standard)
 ```
 
 See the header comment of each workflow for all inputs.
