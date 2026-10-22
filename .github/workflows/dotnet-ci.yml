@@ -2,6 +2,8 @@ name: .NET CI
 
 # Reusable workflow: restore, build and test a .NET solution, optionally pack it.
 # The SDK comes from the caller's global.json.
+# Restore runs a NuGet audit of direct and transitive packages and fails on vulnerabilities at or above
+# `nuget-audit-level`. The runner has Docker, so Testcontainers-based integration tests run as they are.
 #
 #   jobs:
 #     ci:
@@ -37,6 +39,10 @@ on:
         description: ReportGenerator assembly filters for the coverage check
         type: string
         default: '+*;-*.Tests'
+      nuget-audit-level:
+        description: Fail restore on known package vulnerabilities of this severity or higher (low, moderate, high, critical), or `none` to skip the audit
+        type: string
+        default: moderate
 
 permissions:
   contents: read
@@ -57,7 +63,14 @@ jobs:
           global-json-file: global.json
 
       - name: Restore
-        run: dotnet restore "${{ inputs.solution }}"
+        env:
+          AUDIT_LEVEL: ${{ inputs.nuget-audit-level }}
+        run: |
+          if [ "$AUDIT_LEVEL" = none ]; then
+            dotnet restore "${{ inputs.solution }}" -p:NuGetAudit=false
+          else
+            dotnet restore "${{ inputs.solution }}" -p:NuGetAudit=true -p:NuGetAuditMode=all               -p:NuGetAuditLevel="$AUDIT_LEVEL" -warnaserror:NU1901,NU1902,NU1903,NU1904
+          fi
 
       - name: Build
         run: dotnet build "${{ inputs.solution }}" --no-restore -c ${{ inputs.configuration }}
