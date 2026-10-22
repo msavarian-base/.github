@@ -157,9 +157,9 @@ jobs:
           }
           set_tag "$TAG"
           cd "$COMPOSE_DIR"
-          # SERVICES is split into words on purpose.
-          docker compose pull $SERVICES
-          docker compose up -d --remove-orphans $SERVICES
+          read -ra services <<< "$SERVICES"
+          docker compose pull "${services[@]}"
+          docker compose up -d --remove-orphans "${services[@]}"
 
       - name: Health check
         id: health
@@ -187,7 +187,8 @@ jobs:
           sed -i '/^IMAGE_TAG=/d' "$COMPOSE_DIR/.env"
           echo "IMAGE_TAG=$PREVIOUS" >> "$COMPOSE_DIR/.env"
           cd "$COMPOSE_DIR"
-          docker compose up -d --remove-orphans $SERVICES
+          read -ra services <<< "$SERVICES"
+          docker compose up -d --remove-orphans "${services[@]}"
 
       - name: Log out of the registry
         if: always() && inputs.registry != ''

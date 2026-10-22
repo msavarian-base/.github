@@ -53,23 +53,28 @@ jobs:
         run: npm ci
 
       - name: Install browser dependencies
-        # BROWSERS is split into words on purpose.
         env:
           BROWSERS: ${{ inputs.browsers }}
         timeout-minutes: 10
-        run: npx playwright install-deps $BROWSERS
+        run: |
+          read -ra browsers <<< "$BROWSERS"
+          npx playwright install-deps "${browsers[@]}"
 
       - name: Install browsers
         env:
           BROWSERS: ${{ inputs.browsers }}
         timeout-minutes: 10
-        run: npx playwright install $BROWSERS
+        run: |
+          read -ra browsers <<< "$BROWSERS"
+          npx playwright install "${browsers[@]}"
 
       - name: Test
         env:
           CI: true
           ARGS: ${{ inputs.test-args }}
-        run: npx playwright test $ARGS
+        run: |
+          read -ra args <<< "$ARGS"
+          npx playwright test "${args[@]}"
 
       - name: Upload report
         if: always()

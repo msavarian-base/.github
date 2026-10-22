@@ -114,8 +114,9 @@ jobs:
       - name: Generate a solution
         env:
           ARGS: ${{ matrix.args }}
-        # ARGS is split into words on purpose.
-        run: dotnet new "${{ inputs.short-name }}" -n "${{ inputs.generated-name }}" -o "$RUNNER_TEMP/generated" $ARGS
+        run: |
+          read -ra args <<< "$ARGS"
+          dotnet new "${{ inputs.short-name }}" -n "${{ inputs.generated-name }}" -o "$RUNNER_TEMP/generated" "${args[@]}"
 
       - name: Build
         working-directory: ${{ runner.temp }}/generated
