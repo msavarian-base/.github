@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: msavarian-base/.github/.github/workflows/angular-ci.yml@v1
+    with:
+      coverage-threshold: 70
+
+  e2e:
+    uses: msavarian-base/.github/.github/workflows/angular-e2e.yml@v1

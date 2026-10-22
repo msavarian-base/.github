@@ -1,0 +1,7 @@
+{
+    "name": "msavarian-base deploy to Kubernetes",
+    "description": "Build the image, build migration bundles and deploy to staging and production Kubernetes clusters through self-hosted runners; manual rollback by tag.",
+    "iconName": "octicon rocket",
+    "categories": [ "Deployment", "Kubernetes" ],
+    "filePatterns": [ "kustomization.yaml", "Chart.yaml" ]
+}
