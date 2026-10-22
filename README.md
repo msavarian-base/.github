@@ -8,10 +8,16 @@ Organization-wide defaults for `msavarian-base`.
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
 | `.github/workflows/dotnet-migrations-bundle.yml` | Reusable workflow: build self-contained EF Core migration bundles as an artifact for the deploy step |
+| `.github/workflows/deploy-compose.yml` | Reusable workflow: deploy an image tag to a Docker Compose host through its self-hosted runner: release guard, migrations, update, health check, automatic rollback |
+| `.github/workflows/security-scan.yml` | Reusable workflow: `dotnet list package --vulnerable` and `npm audit`, failing at a severity level |
+| `.github/workflows/angular-e2e.yml` | Reusable workflow: Playwright end-to-end tests, HTML report as an artifact |
+| `.github/workflows/angular-ci.yml` | Reusable workflow: install, lint, unit tests with a coverage threshold, build (SPA or SSR) |
+| `.github/workflows/docker-build-push.yml` | Reusable workflow: multi-arch image build, pushed to GHCR or Nexus, tagged with the version and `sha-<commit>` |
 | `.github/workflows/dotnet-template-pack.yml` | Reusable workflow: pack a `dotnet new` template, generate a solution per variant, build and test it; the caller pushes the package |
 | `.github/workflows/pr-title.yml` | Reusable workflow: pull request title must follow Conventional Commits |
 | `.github/workflows/dotnet-github-packages-push.yml` | Reusable workflow: push the `packages` artifact to the organization's GitHub Packages NuGet feed |
 | `workflow-templates/` | Starter workflows shown under **Actions → New workflow** |
+| `templates/dependabot.yml` | Starter Dependabot configuration (NuGet, npm, GitHub Actions, Docker); copy to `.github/dependabot.yml` |
 | `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md` | Default issue forms and pull request template |
 | `CONTRIBUTING.md`, `SECURITY.md` | Default contribution and security policies |
 

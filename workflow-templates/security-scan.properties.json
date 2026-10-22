@@ -1,0 +1,6 @@
+{
+    "name": "msavarian-base vulnerable package scan",
+    "description": "Fail on NuGet or npm packages with known vulnerabilities, on pull requests and weekly.",
+    "iconName": "octicon shield",
+    "categories": [ "Security" ]
+}
