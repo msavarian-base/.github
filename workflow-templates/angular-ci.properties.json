@@ -1,0 +1,7 @@
+{
+    "name": "msavarian-base Angular CI",
+    "description": "Lint, unit-test with a coverage threshold, build, and run Playwright end-to-end tests with the organization's reusable workflows.",
+    "iconName": "octicon browser",
+    "categories": [ "TypeScript", "Angular" ],
+    "filePatterns": [ "angular.json" ]
+}
