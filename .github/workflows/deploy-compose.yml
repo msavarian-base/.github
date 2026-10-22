@@ -12,11 +12,15 @@ name: Deploy to Docker Compose
 #
 # Production deploys only versions whose `v<version>` tag is on `main`; staging also takes `sha-<commit>` tags.
 # Rollback is the same call with an earlier tag and no migrations (see workflow-templates/deploy-compose.yml).
+# The caller grants `packages: read` so the job token can pull private GHCR images.
 #
 #   jobs:
 #     deploy-staging:
 #       needs: [ image, migrations ]
 #       uses: msavarian-base/.github/.github/workflows/deploy-compose.yml@v1
+#       permissions:
+#         contents: read
+#         packages: read
 #       with:
 #         environment: staging
 #         tag: ${{ needs.image.outputs.tag }}
@@ -83,6 +87,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   deploy:
