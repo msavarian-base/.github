@@ -1,0 +1,17 @@
+name: Security scan
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    uses: msavarian-base/.github/.github/workflows/security-scan.yml@v1
+    with:
+      solution: CHANGE_ME.slnx   # empty to skip .NET
+      npm-directory: ''          # for example `.` in an Angular repository

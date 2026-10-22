@@ -1,6 +1,8 @@
 name: Publish
 
-# Push a version tag (v1.2.3) to publish to nuget.org with Trusted Publishing (no API key).
+# Push a version tag (v1.2.3) to publish to nuget.org with Trusted Publishing (no API key) and to the
+# organization's GitHub Packages feed. Packages are unlisted on nuget.org by hand after each release
+# (nuget.org → Manage package → Listing); Trusted Publishing keys can only push.
 # Needs: a nuget.org Trusted Publishing policy for this repository with Workflow File `publish.yml` and
 # Environment `nuget`, and the NUGET_USER secret (nuget.org profile name) in the `nuget` environment.
 on:
@@ -16,6 +18,12 @@ jobs:
     uses: msavarian-base/.github/.github/workflows/dotnet-nuget-pack.yml@v1
     with:
       solution: CHANGE_ME.slnx
+
+  github-packages:
+    needs: pack
+    permissions:
+      packages: write
+    uses: msavarian-base/.github/.github/workflows/dotnet-github-packages-push.yml@v1
 
   push:
     name: Push to nuget.org
