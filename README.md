@@ -7,6 +7,7 @@ Organization-wide defaults for `msavarian-base`.
 | `profile/README.md` | Public organization profile |
 | `.github/workflows/dotnet-ci.yml` | Reusable workflow: restore, build, test, optional pack |
 | `.github/workflows/dotnet-nuget-pack.yml` | Reusable workflow: test, pack, check package versions against the tag. The push runs in the caller (see `workflow-templates/dotnet-nuget-publish.yml`) so nuget.org Trusted Publishing can match its file name |
+| `.github/workflows/dotnet-template-pack.yml` | Reusable workflow: pack a `dotnet new` template, generate a solution per variant, build and test it; the caller pushes the package |
 | `.github/workflows/pr-title.yml` | Reusable workflow: pull request title must follow Conventional Commits |
 | `.github/workflows/dotnet-github-packages-push.yml` | Reusable workflow: push the `packages` artifact to the organization's GitHub Packages NuGet feed |
 | `workflow-templates/` | Starter workflows shown under **Actions → New workflow** |
