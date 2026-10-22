@@ -1,0 +1,47 @@
+name: Pull request title
+
+# Reusable workflow: check that the pull request title follows Conventional Commits, because the squash-merge
+# commit on `main` takes the title. Allowed types: feat, fix, docs, refactor, test, chore, ci (plus `perf`,
+# `build` and `revert` by default; override with `types`).
+#
+#   on:
+#     pull_request:
+#       types: [ opened, edited, synchronize, reopened ]
+#   jobs:
+#     title:
+#       uses: msavarian-base/.github/.github/workflows/pr-title.yml@v1
+
+on:
+  workflow_call:
+    inputs:
+      types:
+        description: Allowed types, one per line
+        type: string
+        default: |
+          feat
+          fix
+          docs
+          refactor
+          test
+          chore
+          ci
+          perf
+          build
+          revert
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional Commits title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: ${{ inputs.types }}
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: The subject "{subject}" must start with a lower-case letter (imperative, English).
