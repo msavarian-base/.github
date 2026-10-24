@@ -51,6 +51,23 @@ Repositories are private. Every NuGet package is published on a version tag to:
 
 `workflow-templates/dotnet-nuget-publish.yml` is the full caller.
 
+Private npm packages (for example a platform's own package on GitHub Packages): the app's `.npmrc` names the
+registry and reads the token from `NODE_AUTH_TOKEN`; `angular-ci.yml` and `angular-e2e.yml` take it as the optional
+`NPM_TOKEN` secret:
+
+```yaml
+jobs:
+  ci:
+    uses: msavarian-base/.github/.github/workflows/angular-ci.yml@v1
+    permissions:
+      contents: read
+      packages: read
+    secrets:
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The package must grant the calling repository read access (package settings → Manage Actions access).
+
 ## Versioning
 
 Callers pin the major tag, `@v1`, never `@main`.
