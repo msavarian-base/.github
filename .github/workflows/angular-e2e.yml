@@ -27,6 +27,12 @@ on:
         description: Extra arguments for `playwright test`
         type: string
         default: ''
+    secrets:
+      NPM_TOKEN:
+        description: >-
+          Token for private npm packages, exposed to `npm ci` as NODE_AUTH_TOKEN (the repository's `.npmrc` names the
+          registry). For GitHub Packages pass the caller's `secrets.GITHUB_TOKEN` and grant the job `packages: read`.
+        required: false
 
 permissions:
   contents: read
@@ -50,6 +56,8 @@ jobs:
           cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm ci
 
       - name: Install browser dependencies
