@@ -49,8 +49,9 @@ on:
           registry). For GitHub Packages pass the caller's `secrets.GITHUB_TOKEN` and grant the job `packages: read`.
         required: false
 
-permissions:
-  contents: read
+# No permissions block: the job token gets exactly what the caller grants (callers grant at least `contents: read`;
+# add `packages: read` to install private packages with NPM_TOKEN: secrets.GITHUB_TOKEN). A block here could only
+# narrow it, and would take away `packages: read`.
 
 jobs:
   build:
