@@ -159,7 +159,7 @@ jobs:
 
       - name: Download migration bundles
         if: inputs.migrations-artifact != ''
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.migrations-artifact }}
           path: ${{ runner.temp }}/migrations
